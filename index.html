@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>연수 운영 통합 대시보드</title>
+<title>연수 업무 통합 관리앱</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -103,7 +103,7 @@
 <body>
 <header>
   <div>
-    <h1>📋 연수 운영 통합 대시보드</h1>
+    <h1>📋 연수 업무 통합 관리앱</h1>
     <div class="sub">신청 · 출결 · 만족도 설문(QR) · 이수 현황을 한 화면에서 관리하세요</div>
   </div>
   <div class="toolbar">
@@ -467,6 +467,17 @@ function regBlockHTML(t){
       <div id="regQr" style="width:160px;height:160px;flex:none;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;padding:6px;background:#fff"></div>
       <div class="hint" style="flex:1;min-width:220px;margin:0;background:#fff">① 구글폼을 새로 만들고 ‘📋 등록 폼 문항 복사’로 문항을 붙여넣으세요.<br>② 폼 주소를 위에 넣으면 QR이 생깁니다. ‘🖨 등록 안내문 인쇄’로 출력해 연수장에 붙이세요.<br>③ 모인 응답(구글 시트)을 내려받아 ‘📥 엑셀 불러오기’로 이 명단에 가져올 수 있습니다.</div>
     </div>
+    <div style="margin-top:14px;border-top:1px dashed var(--line);padding-top:12px">
+      <div style="font-weight:700;margin-bottom:6px">📱 폰 서명 등록 (구글시트 연동)</div>
+      <div class="hint" style="margin:0 0 8px;background:#fff">각자 폰에서 <b>서명까지</b> 받으려면, 함께 드린 서명 페이지(sign.html)를 깃허브에 올린 뒤 그 주소를 아래에 넣고 ‘이 연수 QR 만들기’를 누르세요. 위쪽 QR이 이 연수용으로 바뀝니다. 서명·정보는 <b>구글 시트</b>에 자동 저장됩니다. (설정은 함께 드린 가이드 참고)</div>
+      <div class="row" style="margin-bottom:8px">
+        <div class="field" style="flex:1;min-width:240px"><label>서명 페이지 주소 (sign.html)</label>
+          <input id="signBase" value="${esc(t.signBase||'')}" placeholder="예: https://아이디.github.io/저장소/sign.html" onchange="updT('signBase',this.value)"></div>
+      </div>
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;margin-right:16px"><input type="checkbox" style="width:auto" ${t.signNeis?'checked':''} onchange="updT('signNeis',this.checked)"> 나이스 개인번호 받기</label>
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" style="width:auto" ${t.signBirth?'checked':''} onchange="updT('signBirth',this.checked)"> 생년월일 받기</label>
+      <div style="margin-top:10px"><button class="btn-go btn-sm" onclick="buildSignUrl()">📱 이 연수 서명등록 QR 만들기</button></div>
+    </div>
   </div>`;
 }
 function drawRegQR(){ const t=currentT(); const box=document.getElementById('regQr'); if(!box)return; box.innerHTML='';
@@ -474,6 +485,15 @@ function drawRegQR(){ const t=currentT(); const box=document.getElementById('reg
   if(!url){ box.innerHTML='<div style="color:#9aa5b1;font-size:12px;text-align:center">등록 폼 주소를<br>입력하면<br>QR이 나타납니다</div>'; return; }
   if(typeof QRCode==='undefined'){ box.innerHTML='<div style="color:#d05a5a;font-size:12px;text-align:center">QR 로드 실패<br>(인터넷 연결 필요)</div>'; return; }
   new QRCode(box,{text:url,width:160,height:160,correctLevel:QRCode.CorrectLevel.M});
+}
+function buildSignUrl(){
+  const t=currentT(); const base=(t.signBase||'').trim();
+  if(!base){ alert('먼저 서명 페이지 주소(sign.html)를 입력하세요.'); return; }
+  const f=[]; if(t.signNeis)f.push('neis'); if(t.signBirth)f.push('birth');
+  const params=new URLSearchParams(); params.set('t',t.name||''); if(t.date)params.set('d',t.date); if(t.place)params.set('p',t.place); if(f.length)params.set('f',f.join(',')); params.set('afflabel',partAffLabel(t));
+  const url=base+(base.indexOf('?')>-1?'&':'?')+params.toString();
+  t.regUrl=url; const box=document.getElementById('regUrl'); if(box) box.value=url; save(); drawRegQR();
+  alert('이 연수용 서명 등록 QR을 만들었습니다. 위쪽 QR을 ‘🖨 등록 안내문 인쇄’로 출력해 연수장에 붙이세요.');
 }
 function qrBig(url,size){ try{ const tmp=document.createElement('div'); tmp.style.display='none'; document.body.appendChild(tmp);
   new QRCode(tmp,{text:url,width:size,height:size,correctLevel:QRCode.CorrectLevel.M});
@@ -620,6 +640,35 @@ function feeOf(g){
   return d.base + d.over*Math.max(0,h-1);
 }
 function won(n){ return Number(n||0).toLocaleString(); }
+const MAT_DB={ none:{label:'없음',unit:'',rate:0}, manuscript:{label:'원고(국문)',unit:'매',rate:14000,cap:3}, ppt:{label:'PPT',unit:'면',rate:7000,cap:6}, content:{label:'콘텐츠 제작',unit:'차시',rate:150000} };
+function matFeeOf(g){ const m=MAT_DB[g.matType||'none']; if(!m||!m.rate)return 0; return (Number(g.matQty)||0)*m.rate; }
+function transOf(g){ return Number(g.transport)||0; }
+function payTotal(g){ return feeOf(g)+matFeeOf(g)+transOf(g); }
+function matSectionHTML(t){
+  const list=t.instructors||[];
+  const feeT=list.reduce((a,g)=>a+feeOf(g),0), matT=list.reduce((a,g)=>a+matFeeOf(g),0), trT=list.reduce((a,g)=>a+transOf(g),0);
+  const opts=g=>Object.keys(MAT_DB).map(k=>`<option value="${k}"${((g.matType||'none')===k)?' selected':''}>${MAT_DB[k].label}</option>`).join('');
+  const rows=list.map((g,i)=>{ const m=MAT_DB[g.matType||'none']; const over=(m.cap&&(Number(g.matQty)||0)>(Number(g.hours)||0)*m.cap);
+    return `<tr>
+      <td class="center">${i+1}</td><td>${esc(g.name)||'<span style="color:#9aa5b1">(이름)</span>'}</td>
+      <td><select onchange="updG('${g.id}','matType',this.value)">${opts(g)}</select></td>
+      <td>${m.rate?`<input value="${esc(g.matQty||'')}" onchange="updG('${g.id}','matQty',this.value)" style="text-align:right;width:60px"> ${m.unit}${over?` <span style="color:var(--red);font-size:11px">한도초과</span>`:''}`:'<span style="color:var(--muted)">—</span>'}</td>
+      <td class="center" style="white-space:nowrap"><b>${won(matFeeOf(g))}</b></td>
+      <td><input value="${esc(g.transport||'')}" onchange="updG('${g.id}','transport',this.value)" placeholder="왕복 실비" style="text-align:right;width:88px"></td>
+      <td class="center" style="white-space:nowrap"><b>${won(payTotal(g))}</b> 원</td>
+    </tr>`;}).join('');
+  const foot=list.length?`<tfoot><tr><td colspan="4" style="text-align:right;font-weight:700;background:#fafbfd">합계</td>
+    <td class="center" style="background:#fafbfd"><b>${won(matT)}</b></td><td class="center" style="background:#fafbfd"><b>${won(trT)}</b></td>
+    <td class="center" style="background:#fafbfd;white-space:nowrap"><b>${won(feeT+matT+trT)}</b> 원</td></tr></tfoot>`:'';
+  return `<div style="margin-top:22px;border-top:1px solid var(--line);padding-top:16px">
+    <div style="font-weight:700;margin-bottom:8px">📄 강의 자료비(원고료) · 🚆 교통비 산정 <span style="font-weight:400;color:var(--muted);font-size:12.5px">(필요한 강사만 입력)</span></div>
+    <div class="hint no-print">· <b>자료비(원고료)</b>: 원고(국문) 14,000원/매(시간당 3매 이내) · PPT 7,000원/면(시간당 6면 이내) · 콘텐츠 150,000원/차시. <b>강의 자료는 담당자에게 제출</b>해야 지급됩니다.<br>· <b>교통비</b>: 왕복 실비(주로 기차비 — 예: 서울 편도 5만 → 왕복 약 10만원). <b>영수증 제출 필수</b>. 강사료·자료비와 별도 지급.</div>
+    <table><thead><tr><th class="center" style="width:34px">No</th><th>강사명</th><th style="width:120px">자료 유형</th><th style="width:120px">수량</th><th class="center" style="width:86px">자료비</th><th style="width:108px">교통비(왕복)</th><th class="center" style="width:108px">총 지급액</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="7" class="empty">강사를 먼저 추가하세요</td></tr>'}</tbody>${foot}</table>
+    ${list.length?`<div class="hint" style="margin-top:10px;background:#eef6ff;border-color:#c9def5;font-size:14px">💰 강사료 <b>${won(feeT)}</b> + 자료비 <b>${won(matT)}</b> + 교통비 <b>${won(trT)}</b> = <b>총 ${won(feeT+matT+trT)}원</b></div>`:''}
+  </div>`;
+}
+function payAttach(d){ const a=['강사 출근부 사본 1부']; if(d.matTotal>0)a.push('강의 자료 1부'); if(d.trTotal>0)a.push('교통비 영수증 각 1부'); return a.map((x,i)=>`${i+1}. ${x}`).join('　　'); }
 
 function tabInst(t){
   if(!t.instructors) t.instructors=[];
@@ -649,6 +698,8 @@ function tabInst(t){
     <td class="center"><input type="checkbox" style="width:auto" ${g.docSex?'checked':''} onchange="updGdoc('${g.id}','docSex',this.checked)"></td>
     <td class="center"><input type="checkbox" style="width:auto" ${g.docAdmin?'checked':''} onchange="updGdoc('${g.id}','docAdmin',this.checked)"></td>
     <td class="center"><input type="checkbox" style="width:auto" ${g.docBank?'checked':''} onchange="updGdoc('${g.id}','docBank',this.checked)"></td>
+    <td class="center"><input type="checkbox" style="width:auto" ${g.docMaterial?'checked':''} onchange="updGdoc('${g.id}','docMaterial',this.checked)"></td>
+    <td class="center"><input type="checkbox" style="width:auto" ${g.docReceipt?'checked':''} onchange="updGdoc('${g.id}','docReceipt',this.checked)"></td>
   </tr>`).join('');
   return `
     <div class="flex-between no-print" style="margin-bottom:10px">
@@ -666,6 +717,7 @@ function tabInst(t){
       <th style="width:150px">강사 유형</th><th class="center" style="width:52px">시수</th><th class="center" style="width:96px">강사료</th><th style="width:40px"></th></tr></thead>
     <tbody>${rows||'<tr><td colspan="8" class="empty">강사를 추가하세요</td></tr>'}</tbody>${foot}</table>
 
+    ${matSectionHTML(t)}
     <div style="margin-top:24px;border-top:1px solid var(--line);padding-top:16px">
       <div style="font-weight:700;margin-bottom:8px">📎 강사 필요서류 안내 · 제출 관리</div>
       <div class="flex-between no-print" style="margin-bottom:10px;gap:8px;flex-wrap:wrap">
@@ -678,8 +730,8 @@ function tabInst(t){
       ${formLibraryHTML()}
       <div class="hint no-print" style="background:#eef6ff;border-color:#c9def5">✅ 아래 표는 <b>강사별 서류 제출 여부(제출자 확인)</b>를 관리하는 곳입니다. 강사가 서류를 내면 해당 칸에 체크(✓)하세요. 누가 무엇을 안 냈는지 한눈에 보여 독촉·정리에 씁니다.</div>
       <table><thead><tr><th class="center" style="width:34px">No</th><th>강사명</th>
-        <th class="center">강사카드·개인정보동의</th><th class="center">성범죄·아동학대 동의</th><th class="center">행정정보 공동이용 동의</th><th class="center">통장사본</th></tr></thead>
-      <tbody>${docRows||'<tr><td colspan="6" class="empty">강사를 추가하면 서류 제출 현황을 체크할 수 있습니다</td></tr>'}</tbody></table>
+        <th class="center">강사카드·개인정보동의</th><th class="center">성범죄·아동학대 동의</th><th class="center">행정정보 공동이용 동의</th><th class="center">통장사본</th><th class="center">강의자료</th><th class="center">교통비영수증</th></tr></thead>
+      <tbody>${docRows||'<tr><td colspan="8" class="empty">강사를 추가하면 서류 제출 현황을 체크할 수 있습니다</td></tr>'}</tbody></table>
       <div class="hint no-print" style="margin-top:10px;background:#fff7ed;border-color:#f2d5b0">🔒 강사카드에는 <b>주민등록번호·계좌번호</b>가 포함됩니다. 문자·메신저보다 <b>이메일·직접 제출</b> 등 안전한 방법으로 받고, 세금 정산 후 폐기하세요.</div>
       <div class="hint no-print" style="margin-top:8px">👮 <b>성범죄·아동학대 경력 조회</b>: 강사에게 ‘성범죄·아동학대 관련 범죄조회 동의서’를 받아 <b>학교장 명의</b>로 <b>범죄경력회보서 발급시스템(crims.police.go.kr)</b> 또는 관할 경찰서에 신청합니다(무료·최대 14일). ‘행정정보 공동이용 사전동의서’를 받으면 학교가 행정정보 공동이용망으로 직접 확인할 수도 있습니다.</div>
       <div class="hint no-print" style="margin-top:8px;background:#f0f7f2;border-color:#cfe6d8">ℹ️ <b>개인정보 처리</b>: 이 대시보드 입력값은 <b>이 컴퓨터의 브라우저에만</b> 저장되며 외부로 전송되지 않습니다. 주민등록번호·계좌번호는 대시보드에 입력하지 말고 제출받은 서식으로만 관리하고, 강사 등록·세금 정산이 끝나면 서류·데이터를 폐기하세요.</div>
@@ -700,7 +752,7 @@ function toggleRateRef(){
 }
 function addG(){ const t=currentT(); if(!t.instructors)t.instructors=[]; t.instructors.push({id:uid(),name:'',subject:'',phone:'',hours:'',grade:'gen2',rate:''}); save(); renderTab(); }
 function delG(id){ const t=currentT(); t.instructors=(t.instructors||[]).filter(g=>g.id!==id); save(); renderTab(); }
-function updG(id,f,v){ const t=currentT(); const g=(t.instructors||[]).find(x=>x.id===id); if(g){ g[f]=v; save(); if(f==='grade'||f==='hours'||f==='rate') renderTab(); } }
+function updG(id,f,v){ const t=currentT(); const g=(t.instructors||[]).find(x=>x.id===id); if(g){ g[f]=v; save(); if(['grade','hours','rate','matType','matQty','transport'].includes(f)) renderTab(); } }
 function updGdoc(id,f,v){ const t=currentT(); const g=(t.instructors||[]).find(x=>x.id===id); if(g){ g[f]=v; save(); } }
 function downloadForm(key){
   const f=FORMS[key]; if(!f){ alert('서식을 찾을 수 없습니다.'); return; }
@@ -767,9 +819,10 @@ function tabEvi(t){
     <table><thead><tr><th>파일명</th><th class="center" style="width:80px">크기</th><th class="center" style="width:110px">올린 날짜</th><th class="center no-print" style="width:170px">관리</th></tr></thead>
     <tbody>${items}</tbody></table>`;
 }
-function exportInst(fmt){ const t=currentT(); const rows=[['No','강사명','담당·과목','연락처','강사유형','시수','강사료']];
-  (t.instructors||[]).forEach((g,i)=>rows.push([i+1,g.name,g.subject||'',g.phone||'',gradeLabel(g),g.hours||'',feeOf(g)]));
-  const tot=(t.instructors||[]).reduce((a,g)=>a+feeOf(g),0); if((t.instructors||[]).length) rows.push(['','','','','','합계',tot]);
+function exportInst(fmt){ const t=currentT(); const L=t.instructors||[];
+  const rows=[['No','강사명','담당·과목','연락처','강사유형','시수','강사료','자료유형','자료수량','자료비','교통비','총지급액']];
+  L.forEach((g,i)=>rows.push([i+1,g.name,g.subject||'',g.phone||'',gradeLabel(g),g.hours||'',feeOf(g),MAT_DB[g.matType||'none'].label,g.matQty||'',matFeeOf(g),transOf(g),payTotal(g)]));
+  if(L.length) rows.push(['','','','','','합계',L.reduce((a,g)=>a+feeOf(g),0),'','',L.reduce((a,g)=>a+matFeeOf(g),0),L.reduce((a,g)=>a+transOf(g),0),L.reduce((a,g)=>a+payTotal(g),0)]);
   saveRows(rows,`${t.name}_강사명단`,fmt); }
 
 /* ===== 성범죄 경력 조회 동의서 인쇄 ===== */
@@ -913,7 +966,8 @@ function draftData(){
   const purpose=document.getElementById('d_purpose').value.trim();
   Object.assign(t,{draftRef:ref,draftFund:fund,draftAcct:acct,draftSchool:school,draftPurpose:purpose}); save();
   const list=t.instructors||[]; const total=list.reduce((a,g)=>a+feeOf(g),0);
-  return {t,type,ref,fund,acct,school,purpose,list,total};
+  const matTotal=list.reduce((a,g)=>a+matFeeOf(g),0); const trTotal=list.reduce((a,g)=>a+transOf(g),0);
+  return {t,type,ref,fund,acct,school,purpose,list,total,matTotal,trTotal};
 }
 function draftTitle(d){
   return d.type==='hire' ? `「${d.t.name}」 강사 위촉 계획`
@@ -921,15 +975,19 @@ function draftTitle(d){
        :                   `「${d.t.name}」 운영(개최) 계획`;
 }
 function instTableHTML(d,money){
-  const cols=money
-    ? `<th>연번</th><th>성명</th><th>담당 내용</th><th>유형</th><th>시수</th><th>강사료</th>`
-    : `<th>연번</th><th>성명</th><th>담당 내용</th><th>시수</th><th>연락처</th>`;
-  const body=d.list.map((g,i)=> money
-    ? `<tr><td>${i+1}</td><td>${esc(g.name)}</td><td class="l">${esc(g.subject||'')}</td><td>${gradeLabel(g)}</td><td>${esc(String(g.hours||''))}시간</td><td class="r">${won(feeOf(g))}원</td></tr>`
-    : `<tr><td>${i+1}</td><td>${esc(g.name)}</td><td class="l">${esc(g.subject||'')}</td><td>${esc(String(g.hours||''))}시간</td><td>${esc(g.phone||'')}</td></tr>`
-  ).join('');
-  const foot=money?`<tr class="sum"><td colspan="5" class="r">합　계</td><td class="r">${won(d.total)}원</td></tr>`:'';
-  return `<table class="doc"><thead><tr>${cols}</tr></thead><tbody>${body}${foot}</tbody></table>`;
+  if(money){
+    const sM=d.matTotal>0, sT=d.trTotal>0, ex=sM||sT;
+    let cols=`<th>연번</th><th>성명</th><th>담당 내용</th><th>유형</th><th>시수</th><th>강사료</th>`;
+    if(sM)cols+=`<th>자료비</th>`; if(sT)cols+=`<th>교통비</th>`; if(ex)cols+=`<th>소계</th>`;
+    const body=d.list.map((g,i)=>{ let r=`<tr><td>${i+1}</td><td>${esc(g.name)}</td><td class="l">${esc(g.subject||'')}</td><td>${gradeLabel(g)}</td><td>${esc(String(g.hours||''))}시간</td><td class="r">${won(feeOf(g))}원</td>`;
+      if(sM)r+=`<td class="r">${won(matFeeOf(g))}원</td>`; if(sT)r+=`<td class="r">${won(transOf(g))}원</td>`; if(ex)r+=`<td class="r">${won(payTotal(g))}원</td>`; return r+`</tr>`; }).join('');
+    let foot=`<tr class="sum"><td colspan="5" class="r">합　계</td><td class="r">${won(d.total)}원</td>`;
+    if(sM)foot+=`<td class="r">${won(d.matTotal)}원</td>`; if(sT)foot+=`<td class="r">${won(d.trTotal)}원</td>`; if(ex)foot+=`<td class="r">${won(d.total+d.matTotal+d.trTotal)}원</td>`; foot+=`</tr>`;
+    return `<table class="doc"><thead><tr>${cols}</tr></thead><tbody>${body}${foot}</tbody></table>`;
+  }
+  const cols=`<th>연번</th><th>성명</th><th>담당 내용</th><th>시수</th><th>연락처</th>`;
+  const body=d.list.map((g,i)=>`<tr><td>${i+1}</td><td>${esc(g.name)}</td><td class="l">${esc(g.subject||'')}</td><td>${esc(String(g.hours||''))}시간</td><td>${esc(g.phone||'')}</td></tr>`).join('');
+  return `<table class="doc"><thead><tr>${cols}</tr></thead><tbody>${body}</tbody></table>`;
 }
 function overview(d){
   return `가. 연수명: ${esc(d.t.name)}<br>나. 일　시: ${esc(d.t.date||'20  .  .  .')} (총 ${d.t.sessions||1}회)`
@@ -946,14 +1004,16 @@ function buildBodyHTML(d){
       <p class="attach">붙임　1. 강사 이력 및 관련 증빙 1부.　　끝.</p>`;
   }
   if(d.type==='pay'){
-    const budget=`총 ${won(d.total)}원(금 ${numToKor(d.total)}원정)`
+    const grand=d.total+d.matTotal+d.trTotal;
+    const parts=[`강사료 ${won(d.total)}원`]; if(d.matTotal>0)parts.push(`자료비 ${won(d.matTotal)}원`); if(d.trTotal>0)parts.push(`교통비 ${won(d.trTotal)}원`);
+    const budget=`${parts.length>1?parts.join(' + ')+` = 총 ${won(grand)}원`:parts[0]}(금 ${numToKor(grand)}원정)`
       + (d.fund?`, 재원: ${esc(d.fund)}`:'') + (d.acct?`, 예산과목: ${esc(d.acct)}`:'');
     return `<ol>${refLine}
       <li>「${esc(d.t.name)}」 연수 강사에게 다음과 같이 강사 수당을 지급하고자 합니다.
         <div class="sub">${overview(d)}</div></li>
       <li>지급 내역${instTableHTML(d,true)}</li>
       <li>소요 예산: ${budget}</li></ol>
-      <p class="attach">붙임　1. 강사 출근부 사본 1부.　　끝.</p>`;
+      <p class="attach">붙임　${payAttach(d)}　　끝.</p>`;
   }
   const budgetLi=d.total>0?`<li>소요 예산: 강사 수당 총 ${won(d.total)}원(금 ${numToKor(d.total)}원정)${d.fund?`, 재원: ${esc(d.fund)}`:''}</li>`:'';
   return `<ol>${refLine}
@@ -975,10 +1035,13 @@ function buildBodyText(d){
     L.push('','붙임  1. 강사 이력 및 관련 증빙 1부.  끝.');
   } else if(d.type==='pay'){
     L.push(`2. 「${d.t.name}」 연수 강사에게 다음과 같이 강사 수당을 지급하고자 합니다.`,...ov,'3. 지급 내역');
-    d.list.forEach((g,i)=>L.push(`   ${i+1}) ${g.name} [${gradeLabel(g)}] : ${g.hours||0}시간 = ${won(feeOf(g))}원`));
-    let b=`4. 소요 예산: 총 ${won(d.total)}원(금 ${numToKor(d.total)}원정)`;
+    d.list.forEach((g,i)=>{ const ex=[]; if(matFeeOf(g)>0)ex.push(`자료비 ${won(matFeeOf(g))}`); if(transOf(g)>0)ex.push(`교통비 ${won(transOf(g))}`);
+      L.push(`   ${i+1}) ${g.name} [${gradeLabel(g)}] : 강사료 ${won(feeOf(g))}${ex.length?' + '+ex.join(' + '):''} = ${won(payTotal(g))}원`); });
+    const grand=d.total+d.matTotal+d.trTotal;
+    let b=`4. 소요 예산: 총 ${won(grand)}원(금 ${numToKor(grand)}원정) [강사료 ${won(d.total)}`+(d.matTotal>0?` · 자료비 ${won(d.matTotal)}`:'')+(d.trTotal>0?` · 교통비 ${won(d.trTotal)}`:'')+`]`;
     if(d.fund) b+=`, 재원: ${d.fund}`; if(d.acct) b+=`, 예산과목: ${d.acct}`;
-    L.push(b,'','붙임  1. 강사 출근부 사본 1부.  끝.');
+    const att=['강사 출근부 사본 1부']; if(d.matTotal>0)att.push('강의 자료 1부'); if(d.trTotal>0)att.push('교통비 영수증 각 1부');
+    L.push(b,'','붙임  '+att.map((x,i)=>`${i+1}. ${x}`).join('  ')+'  끝.');
   } else {
     L.push(`2. 목적: ${d.purpose||`「${d.t.name}」을(를) 통해 교육 역량을 강화하고자 함`}`,'3. 운영 개요',...ov,'4. 강사');
     d.list.forEach((g,i)=>L.push(`   ${i+1}) ${g.name} / ${g.subject||''} / ${g.hours||0}시간`));
