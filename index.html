@@ -188,7 +188,7 @@
     </div>
     <div style="display:flex;gap:16px;margin-top:14px;align-items:center">
       <div id="nQr" style="width:150px;height:150px;flex:none;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;padding:6px"></div>
-      <div class="hint" style="flex:1;margin:0">링크를 넣으면 QR이 만들어집니다. 선생님이 QR을 찍거나 링크로 서식을 받습니다.<br>‘본문 복사’는 문자·메신저용, ‘인쇄용 열기’는 게시·배부용입니다.</div>
+      <div class="hint" style="flex:1;margin:0">링크를 넣으면 QR이 만들어집니다. 선생님이 QR을 찍거나 링크로 서식을 받습니다.<br>‘본문 복사’는 문자·메신저용, ‘인쇄용 열기’는 게시·배부용입니다.<br>💡 링크가 없다면, 배포한 <b>깃허브 저장소에 서식 파일을 올리면 생기는 주소</b>(예: https://아이디.github.io/저장소/파일명.hwp)를 넣으세요.</div>
     </div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal('nModal')">취소</button>
@@ -324,12 +324,21 @@ function renderTab(){
 }
 
 /* --- 탭1: 신청 명단 --- */
+function catKind(t){ const c=t.cat||''; if(c==='학생')return 'student'; if(c==='학부모')return 'parent'; if(c==='교사'||c==='신규교사'||c==='외부교사')return 'teacher'; return 'etc'; }
+function partCols(t){ const k=catKind(t);
+  if(k==='student') return [{key:'school',label:'학교',ph:'예: 오션중'},{key:'cls',label:'학반',ph:'예: 3-1'}];
+  if(k==='teacher') return [{key:'school',label:'소속(학교)',ph:'예: 오션중'},{key:'pos',label:'직위',sel:['교장','교감','수석교사','부장교사','교사','기타']}];
+  if(k==='parent') return [{key:'aff',label:'소속(선택)',ph:'자녀 학교·학년 등'}];
+  return [{key:'aff',label:'소속',ph:'소속'}]; }
+function partAffLabel(t){ const k=catKind(t); return k==='student'?'학교·학반':k==='teacher'?'소속·직위':'소속'; }
+function partAffText(t,p){ const k=catKind(t); if(k==='student')return [p.school,p.cls].filter(Boolean).join(' '); if(k==='teacher')return [p.school,p.pos].filter(Boolean).join(' '); return p.aff||''; }
+function partCellHTML(p,c){ if(c.sel){ return `<select onchange="updP('${p.id}','${c.key}',this.value)">`+['',...c.sel].map(o=>`<option${((p[c.key]||'')===o)?' selected':''}>${o}</option>`).join('')+`</select>`; } return `<input value="${esc(p[c.key]||'')}" onchange="updP('${p.id}','${c.key}',this.value)" placeholder="${c.ph||''}">`; }
 function tabApply(t){
   const rows=t.participants.map((p,i)=>`
     <tr>
       <td class="center">${i+1}</td>
       <td><input value="${esc(p.name)}" onchange="updP('${p.id}','name',this.value)"></td>
-      <td><input value="${esc(p.aff||'')}" onchange="updP('${p.id}','aff',this.value)" placeholder="학교/학년반"></td>
+      ${partCols(t).map(c=>`<td>${partCellHTML(p,c)}</td>`).join('')}
       <td><input value="${esc(p.phone||'')}" onchange="updP('${p.id}','phone',this.value)" placeholder="선택"></td>
       <td class="center"><button class="icon-btn" onclick="delP('${p.id}')">🗑</button></td>
     </tr>`).join('');
@@ -338,17 +347,19 @@ function tabApply(t){
       <div><button class="btn-go btn-sm" onclick="addP()">＋ 신청자 추가</button>
       <button class="btn-line btn-sm" onclick="openPaste()">📋 명단 붙여넣기</button>
       <button class="btn-line btn-sm" onclick="document.getElementById('xlsFile').click()">📥 엑셀 불러오기</button>
-      <input type="file" id="xlsFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="importXls(event)"></div>
+      <input type="file" id="xlsFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="importXls(event)">
+      <button class="btn-line btn-sm" onclick="downloadTemplate()">📄 빈 양식 내려받기</button></div>
       <div><button class="btn-line btn-sm" onclick="exportApply('xlsx')">⬇ 엑셀</button> <button class="btn-line btn-sm" onclick="exportApply('csv')">⬇ CSV(구글시트용)</button></div>
     </div>
+    <div class="hint no-print" style="padding:8px 12px;margin-bottom:8px">현재 대상: <b>${esc(t.cat||'(미지정)')}</b> — 입력 항목이 대상에 맞게 표시됩니다. (연수정보 수정에서 대상을 바꾸면 항목도 바뀝니다.)</div>
     <div class="hint" id="pasteArea" style="display:none">
-      한 줄에 한 명씩 붙여넣으세요. (이름 [탭 또는 쉼표] 소속 [탭 또는 쉼표] 연락처)<br>
-      <textarea id="pasteBox" rows="5" placeholder="김미술	OO중 3-1	010-0000-0000&#10;이연구	OO중 3-2" style="margin-top:8px"></textarea>
+      한 줄에 한 명씩 붙여넣으세요. 순서: <b>이름 · ${partCols(t).map(c=>c.label).join(' · ')} · 연락처</b> (탭 또는 쉼표로 구분)<br>
+      <textarea id="pasteBox" rows="5" placeholder="김미술	3-1	010-0000-0000&#10;이연구	3-2" style="margin-top:8px"></textarea>
       <div style="margin-top:8px"><button class="btn-go btn-sm" onclick="doPaste()">추가하기</button>
       <button class="btn-line btn-sm" onclick="document.getElementById('pasteArea').style.display='none'">닫기</button></div>
     </div>
-    <table><thead><tr><th class="center" style="width:40px">No</th><th>이름</th><th>소속</th><th>연락처</th><th class="center" style="width:50px"></th></tr></thead>
-    <tbody>${rows||'<tr><td colspan="5" class="empty">신청자를 추가하세요</td></tr>'}</tbody></table>`;
+    <table><thead><tr><th class="center" style="width:40px">No</th><th>이름</th>${partCols(t).map(c=>`<th>${c.label}</th>`).join('')}<th>연락처</th><th class="center" style="width:50px"></th></tr></thead>
+    <tbody>${rows||`<tr><td colspan="${4+partCols(t).length}" class="empty">신청자를 추가하세요</td></tr>`}</tbody></table>`;
 }
 
 /* --- 탭2: 출결 --- */
@@ -360,11 +371,11 @@ function tabAtt(t){
       const on=(p.att&&p.att[si]);
       return `<td class="center"><button class="att-cell ${on?'on':''}" onclick="toggleAtt('${p.id}',${si})">${on?'✓':''}</button></td>`;
     }).join('');
-    return `<tr><td class="center">${i+1}</td><td>${esc(p.name)}</td><td>${esc(p.aff||'')}</td>${cells}
+    return `<tr><td class="center">${i+1}</td><td>${esc(p.name)}</td><td>${esc(partAffText(t,p))}</td>${cells}
       <td class="center"><b>${rate(t,p)}%</b></td></tr>`;
   }).join('');
   return `<div class="hint no-print">출석한 칸을 눌러 ✓ 표시하세요. 이수 기준은 <b>${t.req||80}% 이상</b> 출석입니다.</div>
-    <table><thead><tr><th class="center" style="width:40px">No</th><th>이름</th><th>소속</th>${head}<th class="center">출석률</th></tr></thead>
+    <table><thead><tr><th class="center" style="width:40px">No</th><th>이름</th><th>${partAffLabel(t)}</th>${head}<th class="center">출석률</th></tr></thead>
     <tbody>${rows||'<tr><td colspan="'+(4+S)+'" class="empty">신청자를 먼저 추가하세요</td></tr>'}</tbody></table>`;
 }
 function toggleAtt(pid,si){
@@ -378,10 +389,21 @@ function tabSurvey(t){
     1) 네이버폼·구글폼 등으로 만족도 설문을 먼저 만드세요.<br>
     2) 그 설문 <b>주소(URL)</b>를 아래에 붙여넣으면 QR코드가 자동으로 만들어집니다.<br>
     3) 강의 화면에 QR을 띄우거나 인쇄하면, 선생님들이 휴대폰으로 찍어 바로 응답합니다.</div>
+    <div class="hint no-print" style="background:#fff">
+      <div style="font-weight:700;margin-bottom:6px">📝 추천 만족도 설문 문항 <span style="font-weight:400;color:var(--muted)">(그대로 구글폼에 붙여넣어 쓰세요)</span></div>
+      <div style="white-space:pre-line;font-size:13px;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#fafbfd">${esc(SURVEY_TEMPLATE)}</div>
+      <div style="margin-top:8px"><button class="btn-go btn-sm" onclick="copySurveyTemplate()">📋 설문 문항 복사</button></div>
+      <div style="margin-top:8px;color:var(--muted);font-size:12px">구글폼에서 1~6번은 ‘객관식’ 또는 ‘선형 배율(1~5)’, 7~8번은 ‘장문형’으로 만드세요. <b>응답 통계는 구글폼 ‘응답’ 탭에서 자동 요약 차트로 확인</b>됩니다.</div>
+    </div>
     <div class="row" style="margin-bottom:14px">
       <div class="field" style="flex:1;min-width:260px"><label>설문 주소(URL)</label>
         <input id="surveyUrl" value="${esc(t.surveyUrl||'')}" placeholder="https://forms.gle/..." onchange="updT('surveyUrl',this.value);drawQR()"></div>
       <button class="btn-go" onclick="drawQR()">QR 생성</button>
+    </div>
+    <div class="row no-print" style="margin-bottom:14px">
+      <div class="field" style="flex:1;min-width:260px"><label>설문 결과(통계) 링크 — 선택</label>
+        <input id="surveyResultUrl" value="${esc(t.surveyResultUrl||'')}" placeholder="구글폼 ‘응답’ 요약/공유 링크" onchange="updT('surveyResultUrl',this.value)"></div>
+      <button class="btn-line" onclick="openSurveyResult()">📊 통계 보기</button>
     </div>
     <div class="qr-wrap">
       <div><div id="qrcode"></div>
@@ -396,8 +418,8 @@ function tabSurvey(t){
     </div>
     <div class="no-print" style="margin-top:16px">
       <div style="font-weight:700;margin-bottom:8px">설문 응답 완료 체크 (${t.participants.filter(p=>p.survey).length}/${t.participants.length})</div>
-      <table><thead><tr><th class="center" style="width:40px">No</th><th>이름</th><th>소속</th><th class="center">응답완료</th></tr></thead>
-      <tbody>${t.participants.map((p,i)=>`<tr><td class="center">${i+1}</td><td>${esc(p.name)}</td><td>${esc(p.aff||'')}</td>
+      <table><thead><tr><th class="center" style="width:40px">No</th><th>이름</th><th>${partAffLabel(t)}</th><th class="center">응답완료</th></tr></thead>
+      <tbody>${t.participants.map((p,i)=>`<tr><td class="center">${i+1}</td><td>${esc(p.name)}</td><td>${esc(partAffText(t,p))}</td>
         <td class="center"><input type="checkbox" style="width:auto" ${p.survey?'checked':''} onchange="updP('${p.id}','survey',this.checked)"></td></tr>`).join('')
         ||'<tr><td colspan="4" class="empty">신청자를 먼저 추가하세요</td></tr>'}</tbody></table>
     </div>`;
@@ -410,13 +432,30 @@ function drawQR(){
   if(typeof QRCode==='undefined'){ box.innerHTML='<div style="width:200px;color:#d05a5a;font-size:13px">QR 라이브러리를 불러오지 못했습니다.<br>인터넷 연결 상태에서 열어주세요.</div>'; return; }
   new QRCode(box,{text:url,width:200,height:200,correctLevel:QRCode.CorrectLevel.M});
 }
+const SURVEY_TEMPLATE=[
+ '[○○ 연수 만족도 설문]','',
+ '응답해 주셔서 감사합니다. 더 나은 연수를 위해 솔직한 의견을 들려주세요. (약 1분)','',
+ '※ 1~6번: 매우 그렇다(5) ~ 전혀 아니다(1)',
+ '1. 연수 주제와 내용이 유익했다.',
+ '2. 강사의 설명이 이해하기 쉬웠다.',
+ '3. 연수 운영(일정·장소·안내)이 원활했다.',
+ '4. 배운 내용을 수업·업무에 활용할 수 있겠다.',
+ '5. 연수 시간과 분량이 적절했다.',
+ '6. 전반적으로 이 연수에 만족한다.','',
+ '7. 가장 도움이 된 내용은 무엇인가요? (주관식)',
+ '8. 개선점이나 다음에 다뤘으면 하는 주제가 있나요? (주관식)'
+].join('\n');
+function copySurveyTemplate(){ const t=SURVEY_TEMPLATE; const done=()=>alert('설문 문항을 복사했습니다. 구글폼에 붙여넣어 문항을 만드세요.');
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done).catch(()=>fallbackCopy(t,done)); else fallbackCopy(t,done); }
+function openSurveyResult(){ const t=currentT(); const u=(t.surveyResultUrl||'').trim();
+  if(!u){ alert('설문 결과(통계) 링크를 먼저 입력하세요. 구글폼 ‘응답’ 탭의 요약/공유 링크를 넣으면 됩니다.'); return; } window.open(u,'_blank'); }
 
 /* --- 탭4: 이수 현황 --- */
 function tabCert(t){
   const s=trainStats(t);
   const rows=t.participants.map((p,i)=>{
     const pass=isPass(t,p);
-    return `<tr><td class="center">${i+1}</td><td>${esc(p.name)}</td><td>${esc(p.aff||'')}</td>
+    return `<tr><td class="center">${i+1}</td><td>${esc(p.name)}</td><td>${esc(partAffText(t,p))}</td>
       <td class="center">${rate(t,p)}%</td><td class="center">${p.survey?'✓':'-'}</td>
       <td class="center"><span class="badge ${pass?'pass':'fail'}">${pass?'이수':'미이수'}</span></td></tr>`;
   }).join('');
@@ -430,7 +469,7 @@ function tabCert(t){
       <div class="hint" style="margin:0">이수 기준: <b>출석률 ${t.req||80}% 이상</b></div>
       <button class="btn-line btn-sm" onclick="exportCert('xlsx')">⬇ 엑셀</button> <button class="btn-line btn-sm" onclick="exportCert('csv')">⬇ CSV(구글시트용)</button>
     </div>
-    <table><thead><tr><th class="center" style="width:40px">No</th><th>이름</th><th>소속</th>
+    <table><thead><tr><th class="center" style="width:40px">No</th><th>이름</th><th>${partAffLabel(t)}</th>
       <th class="center">출석률</th><th class="center">설문</th><th class="center">이수여부</th></tr></thead>
     <tbody>${rows||'<tr><td colspan="6" class="empty">신청자를 먼저 추가하세요</td></tr>'}</tbody></table>`;
 }
@@ -445,32 +484,41 @@ function updT(f,v){ const t=currentT(); t[f]=v; save(); }
 
 function openPaste(){ const a=document.getElementById('pasteArea'); a.style.display=a.style.display==='none'?'block':'none'; }
 function doPaste(){
-  const t=currentT(); const txt=document.getElementById('pasteBox').value.trim(); if(!txt)return;
+  const t=currentT(); const cols=partCols(t); const txt=document.getElementById('pasteBox').value.trim(); if(!txt)return;
   txt.split(/\n/).forEach(line=>{ const c=line.split(/[\t,]/).map(x=>x.trim()); if(!c[0])return;
-    t.participants.push({id:uid(),name:c[0],aff:c[1]||'',phone:c[2]||'',att:[],survey:false}); });
+    const rec={id:uid(),name:c[0],phone:c[cols.length+1]||'',att:[],survey:false};
+    cols.forEach((col,idx)=>{ rec[col.key]=c[idx+1]||''; });
+    t.participants.push(rec); });
   save(); document.getElementById('pasteBox').value=''; renderTab(); renderKPI(); renderList();
 }
+function downloadTemplate(){ const t=currentT(); const cols=partCols(t);
+  const head=['이름',...cols.map(c=>c.label),'연락처'];
+  const ex=['홍길동',...cols.map(c=> c.key==='school'?'오션중':c.key==='cls'?'3-1':c.key==='pos'?'교사':'소속'),'010-0000-0000'];
+  downloadCSV([head,ex],`${t.name||'신청명단'}_양식(빈틀)`); }
 function importXls(e){
   const f=e.target.files[0]; if(!f)return; const t=currentT();
   const rd=new FileReader();
   rd.onload=ev=>{ const wb=XLSX.read(ev.target.result,{type:'array'});
     const ws=wb.Sheets[wb.SheetNames[0]]; const data=XLSX.utils.sheet_to_json(ws,{header:1});
+    const cols=partCols(t);
     data.forEach((r,i)=>{ if(i===0 && /이름|성명|name/i.test(String(r[0])))return; // 헤더 건너뛰기
-      if(!r[0])return; t.participants.push({id:uid(),name:String(r[0]).trim(),aff:r[1]?String(r[1]).trim():'',phone:r[2]?String(r[2]).trim():'',att:[],survey:false}); });
+      if(!r[0])return; const rec={id:uid(),name:String(r[0]).trim(),phone:r[cols.length+1]?String(r[cols.length+1]).trim():'',att:[],survey:false};
+      cols.forEach((col,idx)=>{ rec[col.key]=r[idx+1]?String(r[idx+1]).trim():''; }); t.participants.push(rec); });
     save(); renderTab(); renderKPI(); renderList(); e.target.value=''; };
   rd.readAsArrayBuffer(f);
 }
 function exportApply(fmt){
-  const t=currentT(); const rows=[['No','이름','소속','연락처']];
-  t.participants.forEach((p,i)=>rows.push([i+1,p.name,p.aff||'',p.phone||'']));
+  const t=currentT(); const cols=partCols(t);
+  const rows=[['No','이름',...cols.map(c=>c.label),'연락처']];
+  t.participants.forEach((p,i)=>rows.push([i+1,p.name,...cols.map(c=>p[c.key]||''),p.phone||'']));
   saveRows(rows,`${t.name}_신청명단`,fmt);
 }
 function exportCert(fmt){
   const t=currentT(); const S=t.sessions||1;
-  const head=['No','이름','소속']; for(let i=0;i<S;i++)head.push(S>1?`${i+1}회`:'출석');
+  const head=['No','이름',partAffLabel(t)]; for(let i=0;i<S;i++)head.push(S>1?`${i+1}회`:'출석');
   head.push('출석률(%)','설문응답','이수여부','인정시간');
   const rows=[head];
-  t.participants.forEach((p,i)=>{ const r=[i+1,p.name,p.aff||''];
+  t.participants.forEach((p,i)=>{ const r=[i+1,p.name,partAffText(t,p)];
     for(let s=0;s<S;s++)r.push((p.att&&p.att[s])?'출석':'');
     r.push(rate(t,p),p.survey?'완료':'',isPass(t,p)?'이수':'미이수',isPass(t,p)?(t.hours||0):0); rows.push(r); });
   saveRows(rows,`${t.name}_이수현황`,fmt);
