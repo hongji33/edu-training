@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>연수 등록 · 서명</title>
+<style>
+  :root{--bg:#f4f6f9;--card:#fff;--ink:#1f2a37;--muted:#6b7280;--line:#e5e9f0;--primary:#3b6ea5;--primary-dark:#2c5580;--green:#2e9e6b;--red:#d05a5a;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5}
+  .wrap{max-width:460px;margin:0 auto;padding:18px 16px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 1px 3px rgba(30,42,55,.08);padding:20px 18px}
+  h1{font-size:20px;margin:0 0 4px}
+  .meta{font-size:13px;color:var(--muted);margin-bottom:16px}
+  label{display:block;font-size:13.5px;font-weight:700;color:var(--ink);margin:14px 0 5px}
+  .req{color:var(--red)}
+  input{width:100%;padding:12px 12px;border:1px solid var(--line);border-radius:10px;font-size:16px;font-family:inherit;background:#fff;color:var(--ink)}
+  input:focus{outline:2px solid #cddcef;border-color:var(--primary)}
+  .sign-wrap{margin-top:6px;border:1.5px dashed var(--primary);border-radius:12px;background:#fff;position:relative}
+  canvas{display:block;width:100%;height:180px;border-radius:12px;touch-action:none}
+  .sign-hint{position:absolute;top:50%;left:0;right:0;transform:translateY(-50%);text-align:center;color:#b7c0cc;font-size:14px;pointer-events:none}
+  .sign-bar{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+  .sign-bar span{font-size:12.5px;color:var(--muted)}
+  .clear-btn{background:#eef3f9;border:1px solid var(--line);color:var(--primary-dark);border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer}
+  button.submit{width:100%;margin-top:20px;background:var(--primary);color:#fff;border:none;border-radius:12px;padding:15px;font-size:17px;font-weight:700;cursor:pointer}
+  button.submit:disabled{opacity:.6}
+  .done{text-align:center;padding:40px 20px}
+  .done .chk{width:74px;height:74px;border-radius:50%;background:var(--green);color:#fff;font-size:42px;line-height:74px;margin:0 auto 16px}
+  .done h2{margin:0 0 8px}
+  .done p{color:var(--muted);margin:0}
+  .err{background:#fbeaea;color:var(--red);border:1px solid #f3caca;border-radius:10px;padding:10px 12px;font-size:14px;margin-top:12px;display:none}
+  .notice{background:#eef6ff;border:1px solid #cfe0f4;border-radius:10px;padding:10px 12px;font-size:12.5px;color:#345; margin-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" id="formCard">
+    <h1 id="tTitle">연수 등록</h1>
+    <div class="meta" id="tMeta"></div>
+
+    <label>성명 <span class="req">*</span></label>
+    <input id="f_name" autocomplete="name" placeholder="이름">
+
+    <div id="wrap_aff">
+      <label id="lab_aff">소속</label>
+      <input id="f_aff" placeholder="소속(학교·학년반 등)">
+    </div>
+
+    <div id="wrap_neis" style="display:none">
+      <label>나이스 개인번호</label>
+      <input id="f_neis" inputmode="numeric" placeholder="나이스 개인번호">
+    </div>
+
+    <div id="wrap_birth" style="display:none">
+      <label>생년월일</label>
+      <input id="f_birth" placeholder="예: 1990-01-01">
+    </div>
+
+    <label>연락처</label>
+    <input id="f_phone" inputmode="tel" autocomplete="tel" placeholder="010-0000-0000">
+
+    <label>서명 <span class="req">*</span></label>
+    <div class="sign-wrap">
+      <canvas id="sign"></canvas>
+      <div class="sign-hint" id="signHint">여기에 손가락으로 서명해 주세요</div>
+    </div>
+    <div class="sign-bar"><span>손가락(또는 펜)으로 위 칸에 서명</span><button class="clear-btn" type="button" onclick="clearSign()">지우기</button></div>
+
+    <div class="err" id="err"></div>
+    <button class="submit" id="submitBtn" onclick="submitForm()">등록하기</button>
+
+    <div class="notice">입력하신 정보와 서명은 <b>연수 등록·출석 확인</b> 목적으로만 사용되며, 담당자에게 안전하게 전달됩니다.</div>
+  </div>
+
+  <div class="card done" id="doneCard" style="display:none">
+    <div class="chk">✓</div>
+    <h2>등록이 완료되었습니다</h2>
+    <p id="doneName"></p>
+    <p style="margin-top:6px">참석해 주셔서 감사합니다.</p>
+  </div>
+</div>
+
+<script>
+/* ================= 설정 (담당자가 1회 입력) ================= */
+/* 아래 따옴표 안에, 구글 앱스스크립트에서 '배포'하고 받은 웹앱 주소를 붙여넣으세요. */
+const SCRIPT_URL = "여기에_앱스스크립트_웹앱_주소_붙여넣기";
+/* =========================================================== */
+
+const qs = new URLSearchParams(location.search);
+const TITLE = qs.get('t') || qs.get('title') || '연수 등록';
+const DATE  = qs.get('d') || qs.get('date') || '';
+const PLACE = qs.get('p') || qs.get('place') || '';
+const FIELDS = (qs.get('f') || qs.get('fields') || '').split(',').map(s=>s.trim());
+const AFFLABEL = qs.get('afflabel') || '소속';
+
+document.getElementById('tTitle').textContent = TITLE + ' 등록';
+document.getElementById('tMeta').textContent = [DATE, PLACE].filter(Boolean).join(' · ');
+document.getElementById('lab_aff').textContent = AFFLABEL;
+document.getElementById('f_aff').placeholder = AFFLABEL + ' 입력';
+if(FIELDS.includes('neis')) document.getElementById('wrap_neis').style.display='block';
+if(FIELDS.includes('birth')) document.getElementById('wrap_birth').style.display='block';
+
+/* ---- 서명 패드 ---- */
+const canvas = document.getElementById('sign');
+const hint = document.getElementById('signHint');
+let ctx, drawing=false, signed=false;
+function setupCanvas(){
+  const ratio = window.devicePixelRatio||1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width*ratio; canvas.height = 180*ratio;
+  ctx = canvas.getContext('2d');
+  ctx.scale(ratio,ratio);
+  ctx.lineWidth=2.6; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#111';
+}
+function pos(e){ const r=canvas.getBoundingClientRect(); const s=(e.touches&&e.touches[0])||e; return {x:s.clientX-r.left, y:s.clientY-r.top}; }
+function start(e){ drawing=true; signed=true; hint.style.display='none'; const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); e.preventDefault(); }
+function move(e){ if(!drawing)return; const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); e.preventDefault(); }
+function end(){ drawing=false; }
+function clearSign(){ const r=canvas.getBoundingClientRect(); ctx.clearRect(0,0,canvas.width,canvas.height); signed=false; hint.style.display='block'; }
+window.addEventListener('load',()=>{ setupCanvas();
+  canvas.addEventListener('mousedown',start); canvas.addEventListener('mousemove',move); window.addEventListener('mouseup',end);
+  canvas.addEventListener('touchstart',start,{passive:false}); canvas.addEventListener('touchmove',move,{passive:false}); canvas.addEventListener('touchend',end);
+});
+
+function showErr(m){ const e=document.getElementById('err'); e.textContent=m; e.style.display='block'; }
+
+function submitForm(){
+  const name=document.getElementById('f_name').value.trim();
+  if(!name){ showErr('성명을 입력해 주세요.'); return; }
+  if(!signed){ showErr('서명을 해주세요.'); return; }
+  if(!SCRIPT_URL || SCRIPT_URL.indexOf('script.google.com')<0){ showErr('등록 서버(앱스스크립트 주소)가 설정되지 않았습니다. 담당 선생님께 문의해 주세요.'); return; }
+  document.getElementById('err').style.display='none';
+  const btn=document.getElementById('submitBtn'); btn.disabled=true; btn.textContent='등록 중...';
+  const data={
+    title:TITLE, date:DATE, place:PLACE,
+    name:name,
+    aff:document.getElementById('f_aff').value.trim(),
+    neis:document.getElementById('f_neis').value.trim(),
+    birth:document.getElementById('f_birth').value.trim(),
+    phone:document.getElementById('f_phone').value.trim(),
+    sign:canvas.toDataURL('image/png')
+  };
+  fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(data)})
+    .then(()=>{ done(name); })
+    .catch(()=>{ btn.disabled=false; btn.textContent='등록하기'; showErr('전송에 실패했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.'); });
+}
+function done(name){
+  document.getElementById('formCard').style.display='none';
+  document.getElementById('doneName').textContent = name + ' 님, 등록되었습니다.';
+  document.getElementById('doneCard').style.display='block';
+  window.scrollTo(0,0);
+}
+</script>
+</body>
+</html>
