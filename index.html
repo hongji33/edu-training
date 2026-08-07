@@ -379,15 +379,15 @@ function trainStats(t){
 function renderKPI(){
   const T=state.trainings;
   const totalP=T.reduce((a,t)=>a+t.participants.length,0);
-  let attSum=0,attCnt=0,passSum=0;
-  T.forEach(t=>{const s=trainStats(t); if(t.participants.length){attSum+=s.avgAtt;attCnt++;} passSum+=s.passRate;});
-  const avgAtt=attCnt?Math.round(attSum/attCnt):0;
-  const avgPass=T.length?Math.round(passSum/T.length):0;
+  let rateSum=0, passTotal=0;
+  T.forEach(t=>{ t.participants.forEach(p=>{ rateSum+=rate(t,p); if(isPass(t,p)) passTotal++; }); });
+  const avgAtt = totalP? Math.round(rateSum/totalP) : 0;
+  const avgPass = totalP? Math.round(passTotal/totalP*100) : 0;
   document.getElementById('kpis').innerHTML=`
     <div class="kpi blue"><div class="label">운영 연수</div><div class="num">${T.length}<small> 건</small></div></div>
     <div class="kpi"><div class="label">총 신청 인원</div><div class="num">${totalP}<small> 명</small></div></div>
-    <div class="kpi amber"><div class="label">평균 출석률</div><div class="num">${avgAtt}<small>%</small></div></div>
-    <div class="kpi green"><div class="label">평균 이수율</div><div class="num">${avgPass}<small>%</small></div></div>`;
+    <div class="kpi amber"><div class="label">전체 출석률</div><div class="num">${avgAtt}<small>%</small></div></div>
+    <div class="kpi green"><div class="label">전체 이수율</div><div class="num">${avgPass}<small>%</small></div></div>`;
 }
 
 /* ====== 연수 목록 ====== */
@@ -948,6 +948,67 @@ function exportInst(fmt){ const t=currentT(); const L=t.instructors||[];
   L.forEach((g,i)=>rows.push([i+1,g.name,g.subject||'',g.phone||'',gradeLabel(g),g.hours||'',feeOf(g),MAT_DB[g.matType||'none'].label,g.matQty||'',matFeeOf(g),transOf(g),payTotal(g)]));
   if(L.length) rows.push(['','','','','','합계',L.reduce((a,g)=>a+feeOf(g),0),'','',L.reduce((a,g)=>a+matFeeOf(g),0),L.reduce((a,g)=>a+transOf(g),0),L.reduce((a,g)=>a+payTotal(g),0)]);
   saveRows(rows,`${t.name}_강사명단`,fmt); }
+
+/* ===== 강사 출근부 인쇄 ===== */
+function printInstSheet(){
+  const t=currentT(); if(!t){ alert('연수를 먼저 선택하세요.'); return; }
+  const L=t.instructors||[];
+  if(!L.length){ alert('등록된 강사가 없습니다. 강사를 먼저 추가한 뒤 출근부를 인쇄하세요.'); return; }
+  const S=Math.max(1,Math.min(20,Number(t.sessions)||1));
+  const land=S>=4;
+  const hasSubj=L.some(g=>(g.subject||'').trim());
+  const win=window.open('','_blank'); if(!win){ alert('팝업이 차단되었습니다. 허용 후 다시 시도하세요.'); return; }
+  const sesTh=Array.from({length:S},(_,i)=>`<th class="sig">${S>1?(i+1)+'회차':'서명'}<br><span class="dt">(　월　일)</span></th>`).join('');
+  const rows=L.map((g,i)=>`<tr>
+      <td class="center">${i+1}</td>
+      <td class="nm">${esc(g.name||'')}</td>
+      ${hasSubj?`<td>${esc(g.subject||'')}</td>`:''}
+      <td class="center">${esc(g.hours||'')}</td>
+      ${Array.from({length:S},()=>'<td class="sig"></td>').join('')}
+      <td></td>
+    </tr>`).join('');
+  win.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>${esc(t.name||'연수')} 강사 출근부</title>
+  <style>
+    @page{size:A4 ${land?'landscape':'portrait'};margin:14mm}
+    body{font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#111;font-size:14px;padding:20px 24px;margin:0}
+    h1{text-align:center;font-size:22px;letter-spacing:3px;margin:0 0 4px}
+    .meta{text-align:center;color:#444;font-size:13px;margin-bottom:16px;line-height:1.7}
+    table{width:100%;border-collapse:collapse;table-layout:fixed}
+    th,td{border:1px solid #555;padding:8px 6px;font-size:13px;height:46px;vertical-align:middle;word-break:break-all}
+    th{background:#eef2f7;text-align:center} td.center{text-align:center} td.nm{text-align:center;font-weight:600}
+    th.sig,td.sig{width:${land?72:92}px} .dt{font-weight:400;color:#666;font-size:11px}
+    .confirm{margin-top:22px;font-size:13.5px;line-height:1.9}
+    .dateline{margin-top:10px;text-align:center;font-size:14px;letter-spacing:1px}
+    .head{margin-bottom:16px}
+    .head h1{margin:0 0 4px}
+    .approve{width:auto;table-layout:auto;margin:0 0 8px auto;border-collapse:collapse}
+    .approve th,.approve td{border:1px solid #555;text-align:center;font-size:11px;height:auto}
+    .approve th{background:#eef2f7;padding:4px 10px}
+    .approve td.lbl{padding:0 6px;background:#eef2f7;font-weight:700;line-height:1.25}
+    .approve td.box{height:40px;width:64px}
+    @media print{body{padding:0}}
+  </style></head><body>
+    <div class="head">
+      <table class="approve">
+        <tr><td class="lbl" rowspan="2">결<br>재</td><th>담당자</th><th>부장</th><th>교감</th></tr>
+        <tr><td class="box"></td><td class="box"></td><td class="box"></td></tr>
+      </table>
+      <h1>강사 출근부</h1>
+      <div class="meta"><b>${esc(t.name||'')}</b><br>
+        일시: ${esc(t.date||'20  .  .  .')} (총 ${S}회) 　·　 장소: ${esc(t.place||'')} 　·　 대상: ${esc(t.cat||'')}</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th style="width:36px">No</th><th style="width:92px">강사명</th>${hasSubj?'<th>담당·과목</th>':''}
+        <th style="width:48px">시수</th>${sesTh}<th style="width:92px">비고</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="confirm">※ 위 강사가 위 일시에 정상 출강하였음을 확인합니다. (강사 본인 서명 또는 날인)</div>
+    <div class="dateline">20 　 년 　 월 　 일</div>
+  </body></html>`);
+  win.document.close(); setTimeout(()=>{ try{win.focus();win.print();}catch(e){} },400);
+}
 
 /* ===== 성범죄 경력 조회 동의서 인쇄 ===== */
 function printConsent(id){
