@@ -957,6 +957,7 @@ function printInstSheet(){
   const S=Math.max(1,Math.min(20,Number(t.sessions)||1));
   const land=S>=4;
   const hasSubj=L.some(g=>(g.subject||'').trim());
+  const rowH=Math.max(46,Math.min(180,Math.round(600/L.length)));
   const win=window.open('','_blank'); if(!win){ alert('팝업이 차단되었습니다. 허용 후 다시 시도하세요.'); return; }
   const sesTh=Array.from({length:S},(_,i)=>`<th class="sig">${S>1?(i+1)+'회차':'서명'}<br><span class="dt">(　월　일)</span></th>`).join('');
   const rows=L.map((g,i)=>`<tr>
@@ -975,6 +976,7 @@ function printInstSheet(){
     .meta{text-align:center;color:#444;font-size:13px;margin-bottom:16px;line-height:1.7}
     table{width:100%;border-collapse:collapse;table-layout:fixed}
     th,td{border:1px solid #555;padding:8px 6px;font-size:13px;height:46px;vertical-align:middle;word-break:break-all}
+    table.main tbody td{height:${rowH}px}
     th{background:#eef2f7;text-align:center} td.center{text-align:center} td.nm{text-align:center;font-weight:600}
     th.sig,td.sig{width:${land?72:92}px} .dt{font-weight:400;color:#666;font-size:11px}
     .confirm{margin-top:22px;font-size:13.5px;line-height:1.9}
@@ -997,7 +999,7 @@ function printInstSheet(){
       <div class="meta"><b>${esc(t.name||'')}</b><br>
         일시: ${esc(t.date||'20  .  .  .')} (총 ${S}회) 　·　 장소: ${esc(t.place||'')} 　·　 대상: ${esc(t.cat||'')}</div>
     </div>
-    <table>
+    <table class="main">
       <thead><tr>
         <th style="width:36px">No</th><th style="width:92px">강사명</th>${hasSubj?'<th>담당·과목</th>':''}
         <th style="width:48px">시수</th>${sesTh}<th style="width:92px">비고</th>
